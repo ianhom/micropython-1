@@ -57,8 +57,8 @@ void do_str(const char *src, mp_parse_input_kind_t input_kind) {
 }
 #endif
 
-static char *stack_top;
-static char heap[MICROPY_HEAP_SIZE];
+static char *stack_top = RT_NULL;
+static char *heap = RT_NULL;
 
 void mpy_main(const char *filename) {
     int stack_dummy;
@@ -70,13 +70,25 @@ void mpy_main(const char *filename) {
 
     mp_stack_set_top(stack_top);
     // Make MicroPython's stack limit somewhat smaller than full stack available
-    mp_stack_set_limit(FINSH_THREAD_STACK_SIZE - 512);
+	mp_stack_set_limit(FINSH_THREAD_STACK_SIZE - 512);
 
     #if MICROPY_ENABLE_GC
-    gc_init(heap, heap + sizeof(heap));
+    heap = rt_malloc(MICROPY_HEAP_SIZE);
+    if (!heap) {
+        rt_kprintf("No memory for MicroPython Heap!\n");
+        return;
+    }
+    gc_init(heap, heap + MICROPY_HEAP_SIZE);
     #endif
 
+    /* MicroPython initialization */
     mp_init();
+
+    /* system path initialization */
+    mp_obj_list_init(mp_sys_path, 0);
+    mp_obj_list_append(mp_sys_path, MP_OBJ_NEW_QSTR(MP_QSTR_)); // current dir (or base dir of the script)
+    mp_obj_list_append(mp_sys_path, mp_obj_new_str(MICROPY_PY_PATH, strlen(MICROPY_PY_PATH)));
+    mp_obj_list_init(mp_sys_argv, 0);
 
     if (filename) {
         pyexec_file(filename);
@@ -101,6 +113,9 @@ void mpy_main(const char *filename) {
     }
     mp_deinit();
 
+    rt_free(heap);
+//    rt_free(stack_top);
+
     rtt_getchar_deinit();
 }
 
@@ -114,29 +129,40 @@ void gc_collect(void) {
     gc_dump_info();
 }
 
-mp_lexer_t *mp_lexer_new_from_file(const char *filename) {
-    mp_raise_OSError(ENOENT);
-}
-
+#if !MICROPY_PY_MODUOS_FILE
 mp_import_stat_t mp_import_stat(const char *path) {
     return MP_IMPORT_STAT_NO_EXIST;
 }
-
-mp_obj_t mp_builtin_open(size_t n_args, const mp_obj_t *args, mp_map_t *kwargs) {
-    return mp_const_none;
-}
-MP_DEFINE_CONST_FUN_OBJ_KW(mp_builtin_open_obj, 1, mp_builtin_open);
+#endif
 
 NORETURN void nlr_jump_fail(void *val) {
+    DEBUG_printf("nlr_jump_fail\n");
     while (1);
 }
 
 #ifndef NDEBUG
 void MP_WEAK __assert_func(const char *file, int line, const char *func, const char *expr) {
     printf("Assertion '%s' failed, at file %s:%d\n", expr, file, line);
-    __fatal_error("Assertion failed");
+    RT_ASSERT(0);
 }
 #endif
+
+#include <stdarg.h>
+
+int DEBUG_printf(const char *format, ...)
+{
+    static char log_buf[512];
+    va_list args;
+
+    /* args point to the first variable parameter */
+    va_start(args, format);
+    /* must use vprintf to print */
+    rt_vsprintf(log_buf, format, args);
+    rt_kprintf("%s", log_buf);
+    va_end(args);
+
+    return 0;
+}
 
 #if defined(RT_USING_FINSH) && defined(FINSH_USING_MSH)
 #include <finsh.h>

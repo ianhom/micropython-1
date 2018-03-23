@@ -118,4 +118,58 @@ See [pyb.Pin](http://docs.micropython.org/en/latest/pyboard/library/pyb.Pin.html
 >>> p_in.value()                # get value, 0 or 1
 ```
 
+#### uos– basic “operating system” services
+
+See [uos](http://docs.micropython.org/en/latest/pyboard/library/uos.html).
+
+```
+>>> import uos
+>>> uos.                        # Tab 
+__name__        uname           chdir           getcwd
+listdir         mkdir           remove          rmdir
+stat            unlink          mount           umount
+>>> uos.mkdir("rtthread")
+>>> uos.getcwd()
+'/'
+>>> uos.chdir("rtthread")
+>>> uos.getcwd()
+'/rtthread'
+>>> uos.listdir()
+['web_root', 'rtthread', '11']
+>>> uos.rmdir("11")
+>>> uos.listdir()
+['web_root', 'rtthread']
+>>> 
+```
+
+#### usocket– socketmodule
+
+See [usocket](http://docs.micropython.org/en/latest/pyboard/library/usocket.html).
+
+##### TCP Server
+
+```
+>>> import usocket 
+>>> s = usocket.socket(usocket.AF_INET,usocket.SOCK_STREAM)  # Create STREAM TCP socket
+>>> s.bind(('192.168.12.32', 6001))   
+>>> s.listen(5)
+>>> s.setblocking(True)
+>>> sock,addr=s.accept()              
+>>> sock.recv(10)                    
+b'rt-thread\r'
+>>> s.close()
+>>> 
+```
+
+##### TCP Client
+
+```
+>>> import usocket 
+>>> s = usocket.socket(usocket.AF_INET,usocket.SOCK_STREAM)
+>>> s.connect(("192.168.10.110",6000))  
+>>> s.send("micropython")               
+11
+>>> s.close()
+```
+
 ### Coming soon
